@@ -1,1 +1,42 @@
+name: Android Build
 
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive        # clone fcitx5-unikey submodule
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      # Cài NDK và CMake đúng version
+      - name: Setup Android NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK and CMake
+        run: |
+          sdkmanager "ndk;27.2.12479018" "cmake;3.22.1"
+          echo "NDK_VERSION=27.2.12479018" >> $GITHUB_ENV
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VietKey-debug
+          path: app/build/outputs/apk/debug/*.apk
