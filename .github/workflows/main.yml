@@ -29,11 +29,15 @@ jobs:
             https://github.com/fcitx/fcitx5-unikey.git \
             app/src/main/cpp/fcitx5-unikey
 
+      - name: List unikey source files
+        run: |
+          echo "=== unikey/ directory ==="
+          ls -la app/src/main/cpp/fcitx5-unikey/unikey/ || echo "unikey/ NOT FOUND"
+          echo "=== .cpp files ==="
+          find app/src/main/cpp/fcitx5-unikey/unikey -name "*.cpp" | sort
+
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Grant permission for gradlew
-        run: chmod +x gradlew
-        
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
