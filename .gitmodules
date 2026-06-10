@@ -1,3 +1,0 @@
-[submodule "app/src/main/cpp/fcitx5-unikey"]
-	path = app/src/main/cpp/fcitx5-unikey
-	url = https://github.com/fcitx/fcitx5-unikey.git
