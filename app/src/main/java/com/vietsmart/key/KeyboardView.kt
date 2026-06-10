@@ -365,18 +365,20 @@ class KeyboardView(
     }
 
     private fun imLabel() = when (currentIM) {
-        InputMethod.TELEX        -> "Telex"
-        InputMethod.VNI          -> "VNI"
-        InputMethod.VIQR         -> "VIQR"
-        InputMethod.SIMPLE_TELEX -> "Telex+"
+        InputMethod.TELEX         -> "Telex"
+        InputMethod.VNI           -> "VNI"
+        InputMethod.VIQR          -> "VIQR"
+        InputMethod.SIMPLE_TELEX  -> "Telex+"
+        InputMethod.SIMPLE_TELEX2 -> "Telex2"
     }
 
     private fun cycleIM() {
         currentIM = when (currentIM) {
-            InputMethod.TELEX        -> InputMethod.VNI
-            InputMethod.VNI          -> InputMethod.VIQR
-            InputMethod.VIQR         -> InputMethod.SIMPLE_TELEX
-            InputMethod.SIMPLE_TELEX -> InputMethod.TELEX
+            InputMethod.TELEX         -> InputMethod.VNI
+            InputMethod.VNI           -> InputMethod.VIQR
+            InputMethod.VIQR          -> InputMethod.SIMPLE_TELEX
+            InputMethod.SIMPLE_TELEX  -> InputMethod.SIMPLE_TELEX2
+            InputMethod.SIMPLE_TELEX2 -> InputMethod.TELEX
         }
         listener.onInputMethodChange(currentIM)
     }
