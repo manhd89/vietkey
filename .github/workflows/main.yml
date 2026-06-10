@@ -29,20 +29,14 @@ jobs:
             https://github.com/fcitx/fcitx5-unikey.git \
             app/src/main/cpp/fcitx5-unikey
 
-      - name: Inspect unikey headers
-        run: |
-          echo "=== unikey/ files ==="
-          ls app/src/main/cpp/fcitx5-unikey/unikey/
-          echo "=== ukengine.h (first 80 lines) ==="
-          head -80 app/src/main/cpp/fcitx5-unikey/unikey/ukengine.h
-          echo "=== inputproc.h (first 60 lines) ==="
-          head -60 app/src/main/cpp/fcitx5-unikey/unikey/inputproc.h
+      - name: Print ukengine.h
+        run: cat app/src/main/cpp/fcitx5-unikey/unikey/ukengine.h
 
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Grant permission for gradlew
         run: chmod +x gradlew
-      
+
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
