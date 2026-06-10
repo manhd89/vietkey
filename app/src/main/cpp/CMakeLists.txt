@@ -4,36 +4,33 @@ project(vietkey_unikey C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# ─── Path tới fcitx5-unikey submodule ────────────────────────────────────────
-# Clone bằng: git submodule add https://github.com/fcitx/fcitx5-unikey.git
-#             app/src/main/cpp/fcitx5-unikey
+# ─── Path tới fcitx5-unikey (clone trong CI bằng workflow) ───────────────────
 set(UNIKEY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/fcitx5-unikey/unikey)
 
-# ─── Kiểm tra submodule đã được clone chưa ───────────────────────────────────
+# ─── Kiểm tra đã clone chưa ──────────────────────────────────────────────────
 if(NOT EXISTS ${UNIKEY_DIR}/ukengine.h)
     message(FATAL_ERROR
-        "fcitx5-unikey submodule chưa được khởi tạo!\n"
-        "Chạy: git submodule update --init --recursive\n"
-        "Hoặc trong GitHub Actions thêm: submodules: recursive vào actions/checkout"
+        "Không tìm thấy ${UNIKEY_DIR}/ukengine.h\n"
+        "Đảm bảo workflow đã chạy bước: git clone fcitx5-unikey"
     )
 endif()
 
+# ─── Lấy danh sách .cpp thực tế (tránh hardcode file không tồn tại) ──────────
+file(GLOB UNIKEY_SOURCES "${UNIKEY_DIR}/*.cpp")
+
+if(NOT UNIKEY_SOURCES)
+    message(FATAL_ERROR "Không tìm thấy file .cpp trong ${UNIKEY_DIR}")
+endif()
+
+message(STATUS "unikey-lib sources: ${UNIKEY_SOURCES}")
+
 # ─── libunikey-lib (static) ───────────────────────────────────────────────────
-# Chỉ compile phần engine thuần C++, bỏ hoàn toàn Qt / Fcitx5 / gettext
-add_library(unikey-lib STATIC
-    ${UNIKEY_DIR}/ukengine.cpp
-    ${UNIKEY_DIR}/inputproc.cpp
-    ${UNIKEY_DIR}/mactab.cpp
-    ${UNIKEY_DIR}/keycons.cpp
-    ${UNIKEY_DIR}/data.cpp
-    ${UNIKEY_DIR}/vnlexi.cpp
-)
+add_library(unikey-lib STATIC ${UNIKEY_SOURCES})
 
 target_include_directories(unikey-lib PUBLIC
     ${UNIKEY_DIR}
 )
 
-# Suppress warnings từ third-party code
 target_compile_options(unikey-lib PRIVATE
     -Wno-unused-variable
     -Wno-unused-function
