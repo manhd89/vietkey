@@ -29,8 +29,16 @@ jobs:
             https://github.com/fcitx/fcitx5-unikey.git \
             app/src/main/cpp/fcitx5-unikey
 
-      - name: Print ukengine.h
-        run: cat app/src/main/cpp/fcitx5-unikey/unikey/ukengine.h
+      - name: Dump ukengine.h and UnikeyOptions struct
+        run: |
+          echo "====== ukengine.h ======"
+          cat app/src/main/cpp/fcitx5-unikey/unikey/ukengine.h
+          echo ""
+          echo "====== inputproc.h ======"
+          cat app/src/main/cpp/fcitx5-unikey/unikey/inputproc.h
+          echo ""
+          echo "====== unikey.h (if exists) ======"
+          cat app/src/main/cpp/fcitx5-unikey/unikey/unikey.h 2>/dev/null || echo "[not found]"
 
       - uses: gradle/actions/setup-gradle@v4
 
