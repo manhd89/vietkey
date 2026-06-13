@@ -10,12 +10,11 @@ import android.view.inputmethod.InputConnection
 class VietSmartKeyboardService : InputMethodService(), KeyboardView.KeyListener {
 
     private lateinit var keyboardView: KeyboardView
-
-    // UniKeyEngine thay thế TelexEngine
     private val engine = UniKeyEngine(InputMethod.TELEX)
     private var isVietEnabled = true
 
-    // ── Lifecycle ─────────────────────────────────────────────────────────
+    // Số ký tự đã committed mà engine đang theo dõi (để REPLACE hoạt động đúng)
+    private var committedCount = 0
 
     override fun onCreate() {
         super.onCreate()
@@ -29,9 +28,6 @@ class VietSmartKeyboardService : InputMethodService(), KeyboardView.KeyListener 
 
     override fun onCreateInputView(): View {
         keyboardView = KeyboardView(this, this)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
-            keyboardView.fitsSystemWindows = true
-        }
         return keyboardView
     }
 
@@ -41,16 +37,19 @@ class VietSmartKeyboardService : InputMethodService(), KeyboardView.KeyListener 
 
     override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
-        engine.reset()
+        resetState()
         currentInputConnection?.finishComposingText()
     }
 
     override fun onFinishInput() {
         super.onFinishInput()
-        engine.reset()
+        resetState()
     }
 
-    // ── KeyListener ───────────────────────────────────────────────────────
+    private fun resetState() {
+        engine.reset()
+        committedCount = 0
+    }
 
     override fun onKey(key: String) {
         val ic: InputConnection = currentInputConnection ?: return
@@ -59,25 +58,32 @@ class VietSmartKeyboardService : InputMethodService(), KeyboardView.KeyListener 
 
             // ── Backspace ─────────────────────────────────────────────────
             "⌫" -> {
-                if (!engine.isEmpty) {
-                    engine.backspace()
-                    val newComposed = engine.composed
-                    if (newComposed.isEmpty()) {
-                        ic.setComposingText("", 0)
-                        ic.finishComposingText()
+                if (committedCount > 0) {
+                    // Nhờ engine xử lý backspace trong từ hiện tại
+                    val (backs, output) = engine.processBackspace()
+                    if (backs > 0 || output.isNotEmpty()) {
+                        ic.deleteSurroundingText(backs + 1, 0)
+                        if (output.isNotEmpty()) {
+                            ic.commitText(output, 1)
+                            committedCount = output.length
+                        } else {
+                            committedCount = maxOf(0, committedCount - 1)
+                        }
                     } else {
-                        ic.setComposingText(newComposed, 1)
+                        // Engine đã hết từ
+                        ic.deleteSurroundingText(1, 0)
+                        committedCount = 0
                     }
                 } else {
                     ic.deleteSurroundingText(1, 0)
                 }
             }
 
-            // ── Word-break: commit preedit trước, rồi gửi ký tự ─────────
+            // ── Word-break ────────────────────────────────────────────────
             " ", "\n",
             ".", ",", "!", "?", ":", ";",
             "(", ")", "\"", "'", "-", "/" -> {
-                if (!engine.isEmpty) ic.commitText(engine.commit(), 1)
+                resetState()
                 ic.commitText(key, 1)
             }
 
@@ -87,34 +93,45 @@ class VietSmartKeyboardService : InputMethodService(), KeyboardView.KeyListener 
                     val ch = key[0]
 
                     if (!isVietEnabled || !isVietProcessable(ch)) {
-                        if (!engine.isEmpty) ic.commitText(engine.commit(), 1)
+                        resetState()
                         ic.commitText(key, 1)
                         return
                     }
 
                     when (engine.processKey(ch)) {
-                        UkOutputType.NOTHING -> {
-                            // Ký tự thêm vào preedit bình thường
-                            ic.setComposingText(engine.composed, 1)
+                        ProcessResult.COMMIT_CHAR -> {
+                            // backs == 0: commit output bình thường
+                            val out = engine.lastOutput
+                            if (out.isNotEmpty()) {
+                                ic.commitText(out, 1)
+                                committedCount += out.length
+                            } else {
+                                // Engine không có output (đang buffer nội bộ?)
+                                // commit raw char để không mất phím
+                                ic.commitText(key, 1)
+                                committedCount++
+                            }
                         }
-                        UkOutputType.COMMIT -> {
-                            // Engine hoàn thành từ nội bộ
-                            ic.commitText(engine.commit(), 1)
+                        ProcessResult.REPLACE -> {
+                            // backs > 0: engine sửa từ
+                            // Xoá backs ký tự đã commit, commit output mới
+                            val backs = engine.backspaceCount
+                            val out   = engine.lastOutput
+                            ic.deleteSurroundingText(backs, 0)
+                            committedCount = maxOf(0, committedCount - backs)
+                            if (out.isNotEmpty()) {
+                                ic.commitText(out, 1)
+                                committedCount += out.length
+                            }
                         }
-                        UkOutputType.BACKSPACE -> {
-                            // Engine đã tự sửa preedit (undo/redo dấu).
-                            // setComposingText() thay thế toàn bộ composing
-                            // region hiện tại → không cần xoá thủ công.
-                            ic.setComposingText(engine.composed, 1)
-                        }
-                        UkOutputType.ERROR -> {
-                            if (!engine.isEmpty) ic.commitText(engine.commit(), 1)
+                        ProcessResult.PASSTHROUGH -> {
+                            // Engine không xử lý: reset rồi commit raw
+                            resetState()
                             ic.commitText(key, 1)
                         }
                     }
                 } else {
-                    // Multi-char (emoji, v.v.)
-                    if (!engine.isEmpty) ic.commitText(engine.commit(), 1)
+                    resetState()
                     ic.commitText(key, 1)
                 }
             }
@@ -123,27 +140,21 @@ class VietSmartKeyboardService : InputMethodService(), KeyboardView.KeyListener 
 
     override fun onVietToggle(enabled: Boolean) {
         isVietEnabled = enabled
-        if (!engine.isEmpty) currentInputConnection?.commitText(engine.commit(), 1)
-        engine.reset()
+        resetState()
     }
 
     override fun onInputMethodChange(method: InputMethod) {
-        if (!engine.isEmpty) currentInputConnection?.commitText(engine.commit(), 1)
         engine.inputMethod = method
-        engine.reset()
+        resetState()
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────
 
     private fun isVietProcessable(ch: Char): Boolean {
         val k = ch.lowercaseChar()
         if (k in 'a'..'z') return true
         return when (engine.inputMethod) {
-            InputMethod.VNI                                         -> k in '0'..'9'
-            InputMethod.VIQR                                        -> k in "'`?~.^(+"
-            InputMethod.TELEX,
-            InputMethod.SIMPLE_TELEX,
-            InputMethod.SIMPLE_TELEX2                               -> false
+            InputMethod.VNI          -> k in '0'..'9'
+            InputMethod.VIQR         -> k in "'`?~.^(+"
+            else                     -> false
         }
     }
 }
